@@ -19,57 +19,23 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
-venv/
 env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 .venv/
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
+# Jupyter Notebook checkpoints
 .ipynb_checkpoints
 
 # IPython
@@ -79,26 +45,6 @@ ipython_config.py
 # pyenv
 .python-version
 
-# celery beat schedule file
-celerybeat-schedule
-
-# dotenv
-.env
-.env.*
-
-# virtualenv
-.env/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
 # mypy
 .mypy_cache/
 .dmypy.json
@@ -107,34 +53,83 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# pytype static type analyzer
-.pytype/
+# Data directories (ignore datasets and raw data)
+data/
+!data/README.md
 
-# Cython debug symbols
-cython_debug/
+# Models (ignore saved models and checkpoints)
+models/
+!models/README.md
 
-# VS Code settings
-.vscode/
-
-# IDE files
-.idea/
-
-# Logs
+# Logs and output files
+logs/
 *.log
+*.out
+*.txt
 
-# Temporary files
-temp_input.csv
-temp_clean_data.csv
-temp_batch_input.csv
-temp_batch_clean_data.csv
+# TensorBoard log files
+logs/
+events.out.tfevents.*
 
-# Model files
-models/*.pkl
+# Machine Learning experiment tracking (MLflow)
+mlruns/
+mlflow.log
 
-# Generated data files
-data/new_data_clean.csv
-predictions/*.csv
+# Docker files
+*.dockerignore
+docker-compose.yml
 
-# OS generated files
+# Kubernetes files
+kubernetes/
+*.yaml
+
+# Environment variables and secrets
+.env
+.env.*
+*.env
+
+# PySpark temporary files
+metastore_db/
+spark-warehouse/
+.derby.log
+
+# Cache and temporary files
+*.cache
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# System files
 .DS_Store
 Thumbs.db
+
+# Test and coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.exe
+
+# Ignore compiled code
+build/
+dist/
+
+# Ignore wheel files
+*.whl
