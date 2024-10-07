@@ -72,7 +72,6 @@ A FastAPI-based API for predicting Remaining Useful Life (RUL) in predictive mai
       "feature1": 0.5,
       "feature2": 1.2,
       "feature3": 3.4
-      // Add other features as needed
     }
     ```
 
@@ -100,15 +99,12 @@ A FastAPI-based API for predicting Remaining Useful Life (RUL) in predictive mai
           "feature1": 0.5,
           "feature2": 1.2,
           "feature3": 3.4
-          // Add other features as needed
         },
         {
           "feature1": 0.6,
           "feature2": 1.3,
           "feature3": 3.5
-          // Add other features as needed
         }
-        // Add more data points as needed
       ]
     }
     ```
