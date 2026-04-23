@@ -1,0 +1,26 @@
+[tool.pytest.ini_options]
+# Put the repo root on sys.path so ``from src.api...`` imports resolve
+# without turning ``src`` into a real package.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line length — formatter handles this
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
