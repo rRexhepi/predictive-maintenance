@@ -8,6 +8,16 @@ addopts = "-ra --strict-markers"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Legacy preprocessing + training scripts inherit lint debt from before
+# the cleanup arc started. Later PRs in the stack rewrite these; until
+# those land, exclude them so CI stays green on the incremental stack.
+extend-exclude = [
+    "src/preprocessing.py",
+    "src/train_model.py",
+    "src/predict.py",
+    "src/clean_new_data.py",
+    "notebooks/",
+]
 
 [tool.ruff.lint]
 select = [

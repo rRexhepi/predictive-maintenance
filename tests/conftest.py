@@ -10,8 +10,6 @@ of model quality.
 
 from __future__ import annotations
 
-import os
-
 import joblib
 import numpy as np
 import pytest
