@@ -1,0 +1,22 @@
+services:
+  api:
+    build: .
+    image: predictive-maintenance-api
+    ports:
+      - "8000:8000"
+    environment:
+      # The API refuses requests if this isn't set. Generate your own
+      # with `python -c "import secrets;print(secrets.token_urlsafe(32))"`
+      # and put it in a local .env.
+      API_KEY: ${API_KEY:?API_KEY must be set — see README Quickstart step 5}
+      MODEL_PATH: /app/models/rf_model.pkl
+      SCALER_PATH: /app/models/scaler.pkl
+    volumes:
+      # Mount locally-trained artifacts into the container. Train with
+      #   python src/preprocessing.py && python src/train_model.py
+      - ./models:/app/models:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
