@@ -1,150 +1,149 @@
+"""Train the RUL RandomForest and publish to MLflow.
+
+Every run produces:
+
+1. A single ``pyfunc`` artifact (scaler + estimator wrapped as
+   :class:`~src.mlflow_model.PredictiveMaintenanceModel`) logged to the
+   current run and registered under ``REGISTERED_MODEL_NAME``. New
+   versions get the ``candidate`` alias; ``--promote`` also moves the
+   ``production`` alias.
+2. ``models/rf_model.pkl`` on disk for the Dockerfile / filesystem
+   serving fallback.
+
+Tracking URI and joblib fan-out both honour env-vars so CI and local
+dev can opt into different backends without touching the code:
+
+* ``MLFLOW_TRACKING_URI``  — default: ``./mlruns`` file backend (no
+  server required). Point at ``http://localhost:5001`` to use a
+  long-running tracking server + registry DB.
+* ``PM_N_JOBS``            — default: ``2``. Caps sklearn's joblib
+  worker count; ``-1`` (one per core) can fork-bomb a laptop.
+"""
+
+from __future__ import annotations
+
+import argparse
 import os
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from pathlib import Path
+
 import joblib
 import mlflow
 import mlflow.sklearn
+import numpy as np
+import pandas as pd
+from mlflow import MlflowClient
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-'''
+from src.mlflow_model import log_and_register
 
-Copy and paste into terminal
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
+N_JOBS = int(os.getenv("PM_N_JOBS", "2"))
 
-mlflow server \
-  --backend-store-uri sqlite:///mlflow.db \
-  --default-artifact-root mlruns \
-  --host 0.0.0.0 \
-  --port 5001
+MODELS_DIR = Path("models")
+SCALER_PATH = MODELS_DIR / "scaler.pkl"
+ESTIMATOR_PATH = MODELS_DIR / "rf_model.pkl"
+REGISTERED_MODEL_NAME = "predictive-maintenance-rul"
+CANDIDATE_ALIAS = "candidate"
+PRODUCTION_ALIAS = "production"
 
-'''
-
-# Set the MLflow tracking URI
-mlflow.set_tracking_uri("http://localhost:5001")
 
 def load_preprocessed_data():
-    """
-    Load the preprocessed training and validation data.
-
-    Returns:
-    - X_train (DataFrame): Training features.
-    - y_train (Series): Training target.
-    - X_val (DataFrame): Validation features.
-    - y_val (Series): Validation target.
-    """
-    # Get the directory of the current script
+    """Load the preprocessed training and validation data."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Construct the path to the data directory
-    data_dir = os.path.join(script_dir, '..', 'data')
+    data_dir = os.path.join(script_dir, "..", "data")
 
-    # Load training data
-    train_data_path = os.path.join(data_dir, 'train_preprocessed.csv')
-    if not os.path.isfile(train_data_path):
-        raise FileNotFoundError(f"Training data not found at {train_data_path}")
-    train_data = pd.read_csv(train_data_path)
+    train_path = os.path.join(data_dir, "train_preprocessed.csv")
+    val_path = os.path.join(data_dir, "val_preprocessed.csv")
+    if not os.path.isfile(train_path):
+        raise FileNotFoundError(f"Training data not found at {train_path}")
+    if not os.path.isfile(val_path):
+        raise FileNotFoundError(f"Validation data not found at {val_path}")
 
-    # Load validation data
-    val_data_path = os.path.join(data_dir, 'val_preprocessed.csv')
-    if not os.path.isfile(val_data_path):
-        raise FileNotFoundError(f"Validation data not found at {val_data_path}")
-    val_data = pd.read_csv(val_data_path)
+    train_data = pd.read_csv(train_path)
+    val_data = pd.read_csv(val_path)
 
-    # Separate features and target
-    X_train = train_data.drop('RUL', axis=1)
-    y_train = train_data['RUL']
-    X_val = val_data.drop('RUL', axis=1)
-    y_val = val_data['RUL']
-
+    X_train = train_data.drop("RUL", axis=1)
+    y_train = train_data["RUL"]
+    X_val = val_data.drop("RUL", axis=1)
+    y_val = val_data["RUL"]
     return X_train, y_train, X_val, y_val
 
-def train_and_evaluate_model(X_train, y_train, X_val, y_val):
-    """
-    Train the machine learning model and evaluate its performance.
 
-    Parameters:
-    - X_train (DataFrame): Training features.
-    - y_train (Series): Training target.
-    - X_val (DataFrame): Validation features.
-    - y_val (Series): Validation target.
-
-    Returns:
-    - model (sklearn model): Trained model.
-    - metrics (dict): Dictionary containing evaluation metrics.
-    """
-    # Set the experiment name in MLflow
+def train_and_evaluate_model(X_train, y_train, X_val, y_val, *, promote: bool = False):
+    """Train a RandomForest, log to MLflow, register as a pyfunc."""
+    mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment("Predictive Maintenance Model Training")
 
-    # Start an MLflow run
-    with mlflow.start_run():
-        # Define model parameters
+    with mlflow.start_run() as run:
         params = {
-            'n_estimators': 100,
-            'max_depth': None,
-            'min_samples_split': 2,
-            'random_state': 42,
-            'n_jobs': -1
+            "n_estimators": 100,
+            "max_depth": None,
+            "min_samples_split": 2,
+            "random_state": 42,
+            "n_jobs": N_JOBS,
         }
-
-        # Log parameters to MLflow
         mlflow.log_params(params)
 
-        # Initialize the model
         model = RandomForestRegressor(**params)
-
-        # Train the model
         model.fit(X_train, y_train)
 
-        # Make predictions on the validation set
         y_pred = model.predict(X_val)
+        rmse = float(np.sqrt(mean_squared_error(y_val, y_pred)))
+        mae = float(mean_absolute_error(y_val, y_pred))
+        r2 = float(model.score(X_val, y_val))
 
-        # Evaluate the model
-        rmse = np.sqrt(mean_squared_error(y_val, y_pred))
-        mae = mean_absolute_error(y_val, y_pred)
-        r2 = model.score(X_val, y_val)
-
-        # Log metrics to MLflow
-        mlflow.log_metric('rmse', rmse)
-        mlflow.log_metric('mae', mae)
-        mlflow.log_metric('r2', r2)
-
+        mlflow.log_metrics({"rmse": rmse, "mae": mae, "r2": r2})
         print(f"Validation RMSE: {rmse:.2f}")
-        print(f"Validation MAE: {mae:.2f}")
-        print(f"Validation R2 Score: {r2:.2f}")
+        print(f"Validation MAE:  {mae:.2f}")
+        print(f"Validation R2:   {r2:.3f}")
 
-        # Log the model to MLflow
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        # Filesystem estimator (kept for Dockerfile + filesystem fallback).
+        MODELS_DIR.mkdir(exist_ok=True)
+        joblib.dump(model, ESTIMATOR_PATH)
 
-        # Return the trained model and metrics
-        metrics = {'rmse': rmse, 'mae': mae, 'r2': r2}
-        return model, metrics
+        # Register a single pyfunc (scaler + estimator) so serving can
+        # resolve it by URI instead of loading two pickles by path.
+        if not SCALER_PATH.exists():
+            raise FileNotFoundError(
+                f"Scaler missing at {SCALER_PATH}. Run `python src/preprocessing.py` first."
+            )
+        info = log_and_register(
+            scaler_path=SCALER_PATH,
+            estimator_path=ESTIMATOR_PATH,
+            registered_model_name=REGISTERED_MODEL_NAME,
+        )
 
-def save_model(model):
-    """
-    Save the trained model to the models directory.
+        client = MlflowClient()
+        version = info.registered_model_version
+        client.set_registered_model_alias(
+            name=REGISTERED_MODEL_NAME, alias=CANDIDATE_ALIAS, version=version
+        )
+        print(
+            f"Registered {REGISTERED_MODEL_NAME} v{version} "
+            f"(run {run.info.run_id}) with alias @{CANDIDATE_ALIAS}."
+        )
+        if promote:
+            client.set_registered_model_alias(
+                name=REGISTERED_MODEL_NAME, alias=PRODUCTION_ALIAS, version=version
+            )
+            print(f"Promoted {REGISTERED_MODEL_NAME} v{version} to @{PRODUCTION_ALIAS}.")
 
-    Parameters:
-    - model (sklearn model): Trained model.
-    """
-    # Get the directory of the current script
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Construct the path to the models directory
-    models_dir = os.path.join(script_dir, '..', 'models')
-    os.makedirs(models_dir, exist_ok=True)
+    return model, {"rmse": rmse, "mae": mae, "r2": r2}
 
-    # Save the model
-    model_path = os.path.join(models_dir, 'rf_model.pkl')
-    joblib.dump(model, model_path)
-    print(f"Model saved to {model_path}")
 
-def main():
-    # Load the data
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train the RUL model and publish to MLflow.")
+    parser.add_argument(
+        "--promote",
+        action="store_true",
+        help="Also set the `production` alias on this new version.",
+    )
+    args = parser.parse_args()
+
     X_train, y_train, X_val, y_val = load_preprocessed_data()
+    train_and_evaluate_model(X_train, y_train, X_val, y_val, promote=args.promote)
 
-    # Train and evaluate the model
-    model, metrics = train_and_evaluate_model(X_train, y_train, X_val, y_val)
 
-    # Save the model
-    save_model(model)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

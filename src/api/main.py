@@ -1,24 +1,20 @@
 """FastAPI serving layer for the Predictive Maintenance model.
 
-Request flow:
+Two loading paths, picked in order:
 
-1. Pydantic parses + validates the JSON body (via the ``PredictRequest`` /
-   ``BatchPredictRequest`` schemas in ``schemas.py``).
-2. The body is turned into a DataFrame **in memory**.
-3. :func:`~src.api.utils.clean_dataframe` drops/imputes as configured.
-4. :func:`~src.api.utils.validate_data` enforces required columns.
-5. The loaded ``PredictiveMaintenanceModel`` produces a prediction.
+1. **Model Registry URI** (``MODEL_URI`` env var, e.g.
+   ``models:/predictive-maintenance-rul@production``). One atomic pyfunc
+   artifact, versioned, promotable via
+   ``mlflow.MlflowClient.set_registered_model_alias``.
+2. **Filesystem pickles** (``MODEL_PATH`` + ``SCALER_PATH``). Used by CI,
+   the Dockerfile's baked-in artifacts, and local dev before a Registry
+   exists.
 
-Previously every request wrote two CSVs to disk, read them back, and
-deleted them. That version could not survive concurrent traffic — two
-requests would race on the same temp filenames — and a CSV round-trip is
-meaningless overhead for a handful of features. The new path is
-single-process, stateless, and returns in sub-millisecond wallclock
-before any future ``/metrics`` histogram kicks in.
+Both paths expose the same ``predict(df) -> np.ndarray`` interface so
+nothing downstream of ``_load_predictor`` needs to know which one won.
 
-Startup + shutdown are wired through FastAPI's modern ``lifespan``
-context manager. The older ``@app.on_event`` decorators are deprecated
-upstream and were flagging ``DeprecationWarning`` on every boot.
+Startup + shutdown go through FastAPI's ``lifespan`` context manager;
+``@app.on_event`` is deprecated upstream.
 """
 
 from __future__ import annotations
@@ -26,13 +22,15 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Protocol
 
+import joblib
+import mlflow.pyfunc
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
 
-from src.api.model import PredictiveMaintenanceModel
 from src.api.schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
@@ -48,6 +46,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+MODEL_URI = os.getenv("MODEL_URI")  # e.g. "models:/predictive-maintenance-rul@production"
 MODEL_PATH = os.getenv("MODEL_PATH", "models/rf_model.pkl")
 SCALER_PATH = os.getenv("SCALER_PATH", "models/scaler.pkl")
 
@@ -56,13 +55,51 @@ API_KEY_NAME = "access_token"
 
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
-# Column names we insist on receiving. Kept in sync with PredictRequest;
-# update both when the feature contract changes.
 REQUIRED_FEATURES = ["feature1", "feature2", "feature3"]
 
-# Populated by the lifespan hook; unit tests swap this via env vars +
-# module reload.
 _state: dict = {}
+
+
+class _Predictor(Protocol):
+    source: str
+
+    def predict(self, df: pd.DataFrame) -> np.ndarray: ...
+
+
+class _FilesystemPredictor:
+    """Load scaler + estimator off disk; match the pyfunc-style interface."""
+
+    def __init__(self, model_path: str, scaler_path: str):
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model artifact missing at {model_path}")
+        if not os.path.exists(scaler_path):
+            raise FileNotFoundError(f"Scaler artifact missing at {scaler_path}")
+        self._estimator = joblib.load(model_path)
+        self._scaler = joblib.load(scaler_path)
+        self.source = f"filesystem:{model_path}"
+
+    def predict(self, df: pd.DataFrame) -> np.ndarray:
+        scaled = self._scaler.transform(df)
+        return np.asarray(self._estimator.predict(scaled))
+
+
+class _RegistryPredictor:
+    """Wrap ``mlflow.pyfunc.load_model`` in the same interface."""
+
+    def __init__(self, uri: str):
+        self._model = mlflow.pyfunc.load_model(uri)
+        self.source = f"registry:{uri}"
+
+    def predict(self, df: pd.DataFrame) -> np.ndarray:
+        return np.asarray(self._model.predict(df))
+
+
+def _load_predictor() -> _Predictor:
+    if MODEL_URI:
+        logger.info("Loading model from registry URI: %s", MODEL_URI)
+        return _RegistryPredictor(MODEL_URI)
+    logger.info("Loading model from filesystem: %s", MODEL_PATH)
+    return _FilesystemPredictor(MODEL_PATH, SCALER_PATH)
 
 
 @asynccontextmanager
@@ -73,16 +110,14 @@ async def lifespan(_: FastAPI):
             "Set API_KEY in the environment to enable the API."
         )
 
-    scaler = SCALER_PATH if os.path.exists(SCALER_PATH) else None
     try:
-        _state["model"] = PredictiveMaintenanceModel(
-            model_path=MODEL_PATH, scaler_path=scaler
-        )
-        logger.info("Model loaded from %s (scaler=%s).", MODEL_PATH, scaler)
+        predictor = _load_predictor()
+        logger.info("Predictor ready (source=%s).", predictor.source)
     except FileNotFoundError as e:
-        # Surface a clear error at boot instead of silently serving 500s.
         logger.error("Model artifact missing: %s", e)
         raise
+
+    _state["predictor"] = predictor
     yield
     _state.clear()
     logger.info("Predictive Maintenance API shutting down.")
@@ -91,13 +126,12 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="Predictive Maintenance API",
     description="RUL predictions served from a trained RandomForest estimator.",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 
 
 def get_api_key(api_key: Optional[str] = Security(api_key_header)) -> str:
-    """Reject the request unless the header matches the configured API key."""
     if not API_KEY or api_key != API_KEY:
         logger.warning("Unauthorized request (missing or mismatched API key).")
         raise HTTPException(status_code=403, detail="Could not validate credentials.")
@@ -105,13 +139,10 @@ def get_api_key(api_key: Optional[str] = Security(api_key_header)) -> str:
 
 
 def _predict_frame(df: pd.DataFrame) -> list[float]:
-    model: PredictiveMaintenanceModel = _state["model"]
+    predictor: _Predictor = _state["predictor"]
     cleaned = clean_dataframe(df, handle_missing="impute", impute_strategy="median")
     validate_data(cleaned, REQUIRED_FEATURES)
-    # ``PredictiveMaintenanceModel.predict`` returns a scalar for a one-row
-    # frame (its ``[0]`` indexing) and an array otherwise, so we normalise
-    # here and let the batch vs. single endpoints slice as they need.
-    preds = model.model.predict(model.preprocess(cleaned))
+    preds = predictor.predict(cleaned)
     return [float(p) for p in preds]
 
 
@@ -121,7 +152,7 @@ def _predict_frame(df: pd.DataFrame) -> list[float]:
     dependencies=[Security(get_api_key)],
 )
 def predict(request: PredictRequest) -> PredictResponse:
-    if "model" not in _state:
+    if "predictor" not in _state:
         raise HTTPException(status_code=500, detail="Model not loaded.")
     df = pd.DataFrame([request.model_dump()])
     try:
@@ -137,7 +168,7 @@ def predict(request: PredictRequest) -> PredictResponse:
     dependencies=[Security(get_api_key)],
 )
 def batch_predict(request: BatchPredictRequest) -> BatchPredictResponse:
-    if "model" not in _state:
+    if "predictor" not in _state:
         raise HTTPException(status_code=500, detail="Model not loaded.")
     if not request.data:
         raise HTTPException(status_code=400, detail="Empty batch.")
@@ -151,8 +182,13 @@ def batch_predict(request: BatchPredictRequest) -> BatchPredictResponse:
 
 @app.get("/health")
 def health() -> dict:
-    """Liveness probe. Returns 200 as long as the app is serving."""
-    return {"status": "ok", "model_loaded": "model" in _state}
+    """Liveness probe with the loaded predictor's source identifier."""
+    predictor = _state.get("predictor")
+    return {
+        "status": "ok",
+        "model_loaded": predictor is not None,
+        "source": predictor.source if predictor is not None else None,
+    }
 
 
 @app.get("/", include_in_schema=False)
