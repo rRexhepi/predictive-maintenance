@@ -37,61 +37,40 @@ venv.bak/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
-
-# IPython
 profile_default/
 ipython_config.py
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pyright/
 
 # pyenv
 .python-version
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Data directories (ignore datasets and raw data)
-data/
+# Data directories — ignore datasets and raw data; keep the README pointer.
+data/*
 !data/README.md
 
-# Models (ignore saved models and checkpoints)
-models/
+# Saved models and scalers — ignore artifacts; keep the README pointer.
+models/*
 !models/README.md
 
-# Logs and output files
-logs/
-*.log
-*.out
-*.txt
-
-# TensorBoard log files
-logs/
-events.out.tfevents.*
-
-# Machine Learning experiment tracking (MLflow)
+# MLflow local store — the SQLite tracking DB and artifacts should never
+# be committed; contributors produce their own.
+mlflow.db
 mlruns/
 mlflow.log
 
-# Docker files
-*.dockerignore
-docker-compose.yml
-
-# Kubernetes files
-kubernetes/
-*.yaml
+# Logs
+logs/
+*.log
 
 # Environment variables and secrets
 .env
 .env.*
-*.env
-
-# PySpark temporary files
-metastore_db/
-spark-warehouse/
-.derby.log
 
 # Cache and temporary files
 *.cache
@@ -99,37 +78,26 @@ spark-warehouse/
 *.temp
 tmp/
 temp/
+prediction.log
 
-# Editor and IDE files
+# Editor / IDE
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
 
-# System files
+# macOS / Windows cruft
 .DS_Store
 Thumbs.db
 
-# Test and coverage reports
+# Test + coverage
 htmlcov/
 .coverage
 .coverage.*
 .cache
 .pytest_cache/
+.ruff_cache/
 nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
-
-# Build artifacts
-*.o
-*.a
-*.so
-*.exe
-
-# Ignore compiled code
-build/
-dist/
-
-# Ignore wheel files
-*.whl
