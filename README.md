@@ -144,11 +144,15 @@ Batch prediction.
 
 ## Tests
 
-Once the test suite lands (see [Roadmap](#roadmap)):
-
 ```bash
-pytest
+make test
 ```
+
+Covers:
+- `Preprocessor`-style utility functions (drop/impute branches, no-mutation, file round-trip, `validate_data`, `save_predictions`).
+- The FastAPI `/predict`, `/batch_predict`, and `/health` endpoints — happy paths, Pydantic 422s on bad payloads, 403 on missing / wrong API keys, empty-batch rejection, and a regression guard asserting no `temp_*.csv` files appear during a request.
+
+CI runs ruff + pytest + a Docker image build on every push and pull request (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Known gaps (being worked on)
 
@@ -177,8 +181,8 @@ portfolio project, and what's next:
 - [ ] Kill disk-I/O in `/predict`; clean in-memory
 - [ ] Lifespan event handler (current `@app.on_event` is deprecated)
 - [x] Dockerfile + `docker-compose.yaml`
-- [ ] GitHub Actions CI: lint + pytest
-- [ ] Endpoint tests (happy path + 403 on bad key + 422 on bad payload)
+- [x] GitHub Actions CI: lint + pytest + Docker build
+- [x] Endpoint tests (happy path + 403 on bad key + 422 on bad payload)
 - [ ] Move MLflow tracking URI to env var with file-store default
 - [ ] MLflow Model Registry with `@candidate`/`@production` aliases + pyfunc serving
 - [ ] Cap `n_jobs` default (currently `-1`; fork-bombs laptops)
