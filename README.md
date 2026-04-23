@@ -127,6 +127,38 @@ an HTTP backend (`http://localhost:5001` etc.) when you want the UI.
 `PM_N_JOBS` caps sklearn's joblib fan-out (default 2; crank higher if
 you have the cores).
 
+## Metrics & drift
+
+`GET /metrics` returns Prometheus text with per-call prediction
+counters, a prediction-latency histogram, a predicted-RUL distribution
+histogram, and PSI-based feature drift gauges computed from a rolling
+buffer of recent inputs vs. the training distribution captured in
+`models/reference_stats.json`.
+
+```
+# HELP pm_predictions_total Predictions served.
+# TYPE pm_predictions_total counter
+pm_predictions_total 42.0
+
+# HELP pm_prediction_latency_seconds End-to-end latency of a /predict or /batch_predict call.
+# TYPE pm_prediction_latency_seconds histogram
+pm_prediction_latency_seconds_bucket{le="0.01"} 57.0
+pm_prediction_latency_seconds_bucket{le="+Inf"} 60.0
+
+# HELP pm_feature_drift_psi PSI of recent inputs vs. the training distribution.
+# TYPE pm_feature_drift_psi gauge
+pm_feature_drift_psi{feature="feature1"} 0.04
+pm_feature_drift_psi{feature="feature2"} 0.12
+```
+
+**Why PSI not Evidently?** A `/metrics` endpoint backing a Grafana
+dashboard wants a single scalar per feature to plot, which is exactly
+what PSI gives. ~20 lines of `compute_psi` keeps the dep surface small
+and documents what "drift" actually means. On a static dataset the
+numbers sit near zero — the point is the wiring; point it at live
+telemetry and it earns its keep. Threshold convention: `PSI < 0.1` =
+no drift, `0.1–0.25` = moderate, `≥ 0.25` = significant.
+
 ## Endpoints
 
 ### `POST /predict`
@@ -201,7 +233,7 @@ portfolio project, and what's next:
 - [x] MLflow Model Registry with `@candidate`/`@production` aliases + pyfunc serving
 - [x] Cap `n_jobs` default (now 2; env-configurable via `PM_N_JOBS`)
 - [ ] Regenerate API schema from training feature columns
-- [ ] Prometheus `/metrics` endpoint
+- [x] Prometheus `/metrics` endpoint (predictions counter + latency histogram + PSI drift gauges + RUL distribution)
 - [ ] Provisioned Grafana dashboard
 - [ ] CI workflow that captures the dashboard screenshot via Playwright
 

@@ -99,6 +99,26 @@ def test_batch_predict_rejects_empty_batch(api_client, api_key):
     assert r.status_code == 400
 
 
+def test_metrics_exposes_prometheus_series(api_client, api_key):
+    # Prime the monitor with a couple of predictions.
+    for _ in range(2):
+        api_client.post(
+            "/predict",
+            headers={"access_token": api_key},
+            json=_valid_payload(),
+        )
+
+    r = api_client.get("/metrics")
+    assert r.status_code == 200
+    assert "text/plain" in r.headers["content-type"]
+    text = r.text
+    assert "pm_predictions_total" in text
+    assert "pm_prediction_latency_seconds" in text
+    assert "pm_predicted_rul_bucket" in text
+    assert 'pm_input_buffer_size{feature="feature1"}' in text
+    assert "pm_model_info" in text
+
+
 def test_predict_does_not_write_temp_files(api_client, api_key, tmp_path, monkeypatch):
     """Regression test: the old handler created temp_input.csv / temp_clean_data.csv.
 
