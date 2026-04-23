@@ -1,120 +1,125 @@
-# src/api/utils.py
+"""Shared helpers for the prediction API.
 
-import pandas as pd
+Previously all cleaning went through a disk round-trip — the API handler
+wrote the request to a CSV, ran :func:`clean_input_data_from_file`, read
+the cleaned CSV back, and deleted both temp files. That pattern doesn't
+survive concurrent traffic (two requests race on the same ``temp_*.csv``
+paths) and it's an order of magnitude slower than it needs to be for
+what is ultimately a pandas operation.
+
+:func:`clean_dataframe` is the in-memory path every live request should
+use. The legacy file-based wrapper stays for scripts and tests that
+already call it.
+"""
+
+from __future__ import annotations
+
 import os
 from typing import List, Optional
+
+import pandas as pd
 from sklearn.impute import SimpleImputer
 
 
-def clean_input_data(
+def clean_dataframe(
+    df: pd.DataFrame,
+    *,
+    drop_columns: Optional[List[str]] = None,
+    handle_missing: str = "drop",
+    impute_strategy: str = "mean",
+) -> pd.DataFrame:
+    """Clean an in-memory DataFrame: drop columns, handle NaNs.
+
+    Returns a new DataFrame; the caller's frame is not mutated.
+
+    Args:
+        df: Input DataFrame.
+        drop_columns: Column names to drop if present. Missing ones are
+            silently ignored (matches the prior behaviour of
+            ``clean_input_data_from_file``).
+        handle_missing: ``"drop"`` to discard rows with NaN, ``"impute"``
+            to fill via :class:`~sklearn.impute.SimpleImputer`.
+        impute_strategy: Strategy passed to ``SimpleImputer`` when
+            ``handle_missing="impute"``.
+
+    Raises:
+        ValueError: If ``handle_missing`` is not ``"drop"`` or ``"impute"``.
+    """
+    out = df.copy()
+
+    if drop_columns:
+        to_drop = [c for c in drop_columns if c in out.columns]
+        if to_drop:
+            out = out.drop(columns=to_drop)
+
+    if handle_missing == "drop":
+        out = out.dropna().reset_index(drop=True)
+    elif handle_missing == "impute":
+        if out.empty:
+            return out
+        imputer = SimpleImputer(strategy=impute_strategy)
+        imputed = imputer.fit_transform(out)
+        out = pd.DataFrame(imputed, columns=out.columns)
+    else:
+        raise ValueError("handle_missing must be either 'drop' or 'impute'.")
+
+    return out
+
+
+def clean_input_data_from_file(
     input_path: str,
     output_path: str,
     drop_columns: Optional[List[str]] = None,
     handle_missing: str = "drop",
-    impute_strategy: str = "mean"
+    impute_strategy: str = "mean",
 ) -> None:
-    """
-    Cleans the input CSV data by removing specified columns and handling missing values.
+    """File-to-file wrapper around :func:`clean_dataframe`.
 
-    Parameters:
-    - input_path (str): Path to the original input CSV file.
-    - output_path (str): Path to save the cleaned CSV file.
-    - drop_columns (List[str], optional): List of column names to drop from the data.
-    - handle_missing (str): Strategy to handle missing values. Options are 'drop' or 'impute'.
-    - impute_strategy (str): Strategy to use for imputing missing values if handle_missing is 'impute'.
-                             Options include 'mean', 'median', 'most_frequent', etc.
-
-    Raises:
-    - FileNotFoundError: If the input file does not exist.
-    - ValueError: If an invalid handle_missing strategy is provided.
-    - Exception: For any other errors during processing.
+    Kept for scripts and tests that already wrote CSVs; new API code
+    should prefer the in-memory entry point.
     """
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input data file not found at {input_path}")
 
-    try:
-        # Load data
-        df = pd.read_csv(input_path)
-        print(f"Loaded data from {input_path}. Shape: {df.shape}")
+    df = pd.read_csv(input_path)
+    cleaned = clean_dataframe(
+        df,
+        drop_columns=drop_columns,
+        handle_missing=handle_missing,
+        impute_strategy=impute_strategy,
+    )
 
-        # Drop specified columns if any
-        if drop_columns:
-            missing_cols = [col for col in drop_columns if col not in df.columns]
-            if missing_cols:
-                print(f"Warning: Columns {missing_cols} not found in the data. They will be skipped.")
-            df.drop(columns=[col for col in drop_columns if col in df.columns], inplace=True)
-            print(f"Dropped columns: {drop_columns}")
-            print(f"Data shape after dropping columns: {df.shape}")
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    cleaned.to_csv(output_path, index=False)
 
-        # Handle missing values
-        if handle_missing == "drop":
-            initial_shape = df.shape
-            df.dropna(inplace=True)
-            dropped_rows = initial_shape[0] - df.shape[0]
-            print(f"Dropped {dropped_rows} rows due to missing values.")
-        elif handle_missing == "impute":
-            imputer = SimpleImputer(strategy=impute_strategy)
-            df_imputed = pd.DataFrame(imputer.fit_transform(df), columns=df.columns)
-            df = df_imputed
-            print(f"Imputed missing values using '{impute_strategy}' strategy.")
-        else:
-            raise ValueError("handle_missing must be either 'drop' or 'impute'.")
 
-        # Save cleaned data
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        df.to_csv(output_path, index=False)
-        print(f"Cleaned data saved to {output_path}. Shape: {df.shape}")
-
-    except ValueError as ve:
-        print(f"ValueError during data cleaning: {ve}")
-        raise ve
-    except Exception as e:
-        print(f"An error occurred during data cleaning: {e}")
-        raise e
+# Back-compat alias — older imports may still reference this name.
+clean_input_data = clean_input_data_from_file
 
 
 def save_predictions(
     predictions: List[float],
     output_path: str,
-    input_identifier: Optional[List[str]] = None
+    input_identifier: Optional[List[str]] = None,
 ) -> None:
-    """
-    Saves the prediction results to a CSV file.
+    """Save a list of predictions to a CSV, optionally with identifiers."""
+    if input_identifier is not None:
+        if len(input_identifier) != len(predictions):
+            raise ValueError("Length of input_identifier must match length of predictions.")
+        df = pd.DataFrame({"Identifier": input_identifier, "Predicted_RUL": predictions})
+    else:
+        df = pd.DataFrame({"Predicted_RUL": predictions})
 
-    Parameters:
-    - predictions (List[float]): List of predicted Remaining Useful Life (RUL) values.
-    - output_path (str): Path to save the predictions CSV file.
-    - input_identifier (List[str], optional): List of identifiers corresponding to each prediction.
-                                             This could be IDs, timestamps, or any relevant identifiers.
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    df.to_csv(output_path, index=False)
 
-    Raises:
-    - ValueError: If input_identifier is provided but its length does not match predictions.
-    - Exception: For any other errors during saving.
-    """
-    try:
-        # Create DataFrame for predictions
-        if input_identifier:
-            if len(input_identifier) != len(predictions):
-                raise ValueError("Length of input_identifier must match length of predictions.")
-            df_predictions = pd.DataFrame({
-                "Identifier": input_identifier,
-                "Predicted_RUL": predictions
-            })
-        else:
-            df_predictions = pd.DataFrame({
-                "Predicted_RUL": predictions
-            })
 
-        # Ensure the output directory exists
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        # Save to CSV
-        df_predictions.to_csv(output_path, index=False)
-        print(f"Predictions saved to {output_path}. Number of predictions: {len(predictions)}")
-
-    except ValueError as ve:
-        print(f"ValueError during saving predictions: {ve}")
-        raise ve
-    except Exception as e:
-        print(f"An error occurred while saving predictions: {e}")
-        raise e
+def validate_data(df: pd.DataFrame, required_features: List[str]) -> None:
+    """Raise ``ValueError`` if any required feature column is missing."""
+    missing = [c for c in required_features if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required feature columns: {missing}")

@@ -1,0 +1,36 @@
+[tool.pytest.ini_options]
+# Put the repo root on sys.path so ``from src.api...`` imports resolve
+# without turning ``src`` into a real package.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Legacy preprocessing + training scripts inherit lint debt from before
+# the cleanup arc started. Later PRs in the arc rewrite these; until
+# then, exclude from lint so CI stays green on the incremental stack.
+extend-exclude = [
+    "src/preprocessing.py",
+    "src/train_model.py",
+    "src/predict.py",
+    "src/clean_new_data.py",
+    "notebooks/",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line length — formatter handles this
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
