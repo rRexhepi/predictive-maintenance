@@ -59,7 +59,11 @@ def test_psi_zero_for_same_distribution(reference_frame):
 def test_psi_flags_shifted_distribution(reference_frame):
     stats = ReferenceStats.fit(reference_frame)
     rng = np.random.default_rng(1)
-    shifted = rng.normal(5.0, 0.3, size=500).tolist()  # training mean was 1.0
+    # Training distribution was ~N(1.0, 0.5) clipped at 0, so its bin
+    # edges span roughly 0–3. Shift the mean toward the upper tail while
+    # keeping enough support inside the reference span — otherwise every
+    # actual value lands outside every bin and PSI is undefined.
+    shifted = rng.normal(2.5, 0.4, size=500).tolist()
     psi = compute_psi(
         stats.bin_counts["feature1"],
         shifted,
