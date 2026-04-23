@@ -1,0 +1,17 @@
+# Runtime dependencies for the Predictive Maintenance API and training pipeline.
+# Versions are pinned to what the project was last validated against — bump
+# intentionally after a full test run.
+
+# Core data + ML
+pandas==2.2.3
+numpy==1.26.4
+scikit-learn==1.5.2
+joblib==1.4.2
+
+# Experiment tracking
+mlflow==2.17.0
+
+# API
+fastapi==0.115.2
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
