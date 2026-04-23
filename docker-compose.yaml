@@ -11,6 +11,7 @@ services:
       API_KEY: ${API_KEY:?API_KEY must be set — see README Quickstart step 5}
       MODEL_PATH: /app/models/rf_model.pkl
       SCALER_PATH: /app/models/scaler.pkl
+      REFERENCE_STATS_PATH: /app/models/reference_stats.json
     volumes:
       # Mount locally-trained artifacts into the container. Train with
       #   python src/preprocessing.py && python src/train_model.py
@@ -20,3 +21,40 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # ------------------------------------------------------------------
+  # Observability: the API is long-lived so Prometheus scrapes it
+  # directly on the compose DNS name. Grafana auto-loads a provisioned
+  # dashboard at startup.
+  # ------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

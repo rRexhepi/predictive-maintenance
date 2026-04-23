@@ -11,8 +11,9 @@ help:
 	@echo "  train        - Train the model (MLflow tracking)"
 	@echo "  serve        - Run the FastAPI app locally on :8000"
 	@echo "  docker-build - Build the API image"
-	@echo "  docker-up    - docker compose up -d"
+	@echo "  docker-up    - docker compose up -d (api + prometheus + grafana)"
 	@echo "  docker-down  - docker compose down"
+	@echo "  dashboards   - Print URLs for API / Grafana / Prometheus"
 	@echo "  clean        - Remove __pycache__, logs, caches"
 
 install:
@@ -49,6 +50,11 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+dashboards:
+	@echo "API        : http://localhost:8000  (FastAPI docs at /docs, Prom metrics at /metrics)"
+	@echo "Grafana    : http://localhost:3000  (anonymous viewer enabled — dashboard 'Predictive Maintenance API — Serving Health & Drift')"
+	@echo "Prometheus : http://localhost:9090"
 
 clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +

@@ -1,0 +1,127 @@
+name: Capture Grafana dashboard screenshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install runtime + training deps
+        run: pip install -r requirements.txt
+
+      # Training needs a dataset; CI uses a tiny synthetic one so the
+      # whole workflow stays runner-local.
+      - name: Generate synthetic training data
+        run: |
+          mkdir -p data models
+          python - <<'PY'
+          import numpy as np, pandas as pd, os
+          rng = np.random.default_rng(0)
+          n = 400
+          X = pd.DataFrame({
+              "feature1": rng.normal(1.0, 0.5, size=n).clip(0, None),
+              "feature2": rng.gamma(2.0, 1.0, size=n),
+              "feature3": rng.normal(2.0, 0.7, size=n).clip(0, None),
+          })
+          X["RUL"] = X["feature1"] * 10 + X["feature2"] * 5 - X["feature3"] * 2 + rng.normal(scale=1.0, size=n)
+          X.iloc[:int(n*0.8)].to_csv("data/train_preprocessed.csv", index=False)
+          X.iloc[int(n*0.8):].to_csv("data/val_preprocessed.csv", index=False)
+          PY
+
+      # Fit the scaler separately so training can pick it up. The
+      # repo's preprocessing.py expects the raw C-MAPSS layout; we fit
+      # a scaler directly from the synthetic frame instead.
+      - name: Fit scaler + train model
+        run: |
+          python - <<'PY'
+          import joblib, pandas as pd
+          from sklearn.preprocessing import StandardScaler
+          df = pd.read_csv("data/train_preprocessed.csv")
+          X = df.drop(columns=["RUL"])
+          scaler = StandardScaler().fit(X)
+          joblib.dump(scaler, "models/scaler.pkl")
+          print("Fit + saved scaler.")
+          PY
+          MLFLOW_TRACKING_URI=file:./mlruns PM_N_JOBS=2 python src/train_model.py
+
+      - name: Generate API key for the compose stack
+        run: echo "API_KEY=$(python -c 'import secrets;print(secrets.token_urlsafe(32))')" >> "$GITHUB_ENV"
+
+      - name: Bring up compose stack
+        run: docker compose up -d --build
+
+      - name: Wait for /health
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8000/health >/dev/null; then
+              echo "API is up."
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Drive synthetic traffic
+        run: |
+          python - <<'PY'
+          import json, random, urllib.request, os, time
+          url = "http://localhost:8000/predict"
+          key = os.environ["API_KEY"]
+          for _ in range(120):
+              payload = {
+                  "feature1": random.uniform(0.2, 2.0),
+                  "feature2": random.uniform(0.5, 4.0),
+                  "feature3": random.uniform(0.5, 4.0),
+              }
+              req = urllib.request.Request(
+                  url,
+                  data=json.dumps(payload).encode(),
+                  headers={"Content-Type": "application/json", "access_token": key},
+                  method="POST",
+              )
+              try:
+                  urllib.request.urlopen(req, timeout=5).read()
+              except Exception as exc:
+                  print("warn:", exc)
+              time.sleep(0.05)
+          print("Done driving traffic.")
+          PY
+
+      - name: Install Playwright + Chromium
+        run: |
+          pip install playwright==1.47.2
+          python -m playwright install --with-deps chromium
+
+      - name: Capture screenshot
+        run: |
+          python .github/scripts/screenshot_dashboard.py \
+            --url "http://localhost:3000/d/predictive-maintenance" \
+            --output docs/grafana-dashboard.png
+
+      - name: Tear down compose
+        if: always()
+        run: docker compose down -v
+
+      - name: Open a PR with the refreshed screenshot
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/grafana-dashboard-screenshot
+          title: "chore: refresh Grafana dashboard screenshot"
+          commit-message: "Refresh docs/grafana-dashboard.png from CI"
+          add-paths: docs/grafana-dashboard.png
+          body: |
+            Automated refresh of the Grafana dashboard screenshot.
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
