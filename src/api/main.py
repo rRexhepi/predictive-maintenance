@@ -23,7 +23,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Protocol
 
 import joblib
 import mlflow.pyfunc
@@ -150,7 +150,7 @@ app = FastAPI(
 )
 
 
-def get_api_key(api_key: Optional[str] = Security(api_key_header)) -> str:
+def get_api_key(api_key: str | None = Security(api_key_header)) -> str:
     if not API_KEY or api_key != API_KEY:
         logger.warning("Unauthorized request (missing or mismatched API key).")
         raise HTTPException(status_code=403, detail="Could not validate credentials.")

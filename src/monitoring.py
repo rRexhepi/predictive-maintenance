@@ -67,7 +67,7 @@ class ReferenceStats:
         df: pd.DataFrame,
         features: Iterable[str] = MONITORED_FEATURES,
         bins: int = DEFAULT_BIN_COUNT,
-    ) -> "ReferenceStats":
+    ) -> ReferenceStats:
         edges: dict[str, list[float]] = {}
         counts: dict[str, list[int]] = {}
         for feature in features:
@@ -106,7 +106,7 @@ class ReferenceStats:
         )
 
     @classmethod
-    def load(cls, path: str | Path) -> "ReferenceStats":
+    def load(cls, path: str | Path) -> ReferenceStats:
         data = json.loads(Path(path).read_text())
         return cls(
             bin_edges={k: list(map(float, v)) for k, v in data["bin_edges"].items()},
@@ -244,7 +244,7 @@ class DriftMonitor:
 
 
 class _LatencyTimer:
-    def __enter__(self) -> "_LatencyTimer":
+    def __enter__(self) -> _LatencyTimer:
         self._start = time.perf_counter()
         return self
 

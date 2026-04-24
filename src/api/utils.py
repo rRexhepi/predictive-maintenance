@@ -15,7 +15,6 @@ already call it.
 from __future__ import annotations
 
 import os
-from typing import List, Optional
 
 import pandas as pd
 from sklearn.impute import SimpleImputer
@@ -24,7 +23,7 @@ from sklearn.impute import SimpleImputer
 def clean_dataframe(
     df: pd.DataFrame,
     *,
-    drop_columns: Optional[List[str]] = None,
+    drop_columns: list[str] | None = None,
     handle_missing: str = "drop",
     impute_strategy: str = "mean",
 ) -> pd.DataFrame:
@@ -69,7 +68,7 @@ def clean_dataframe(
 def clean_input_data_from_file(
     input_path: str,
     output_path: str,
-    drop_columns: Optional[List[str]] = None,
+    drop_columns: list[str] | None = None,
     handle_missing: str = "drop",
     impute_strategy: str = "mean",
 ) -> None:
@@ -100,9 +99,9 @@ clean_input_data = clean_input_data_from_file
 
 
 def save_predictions(
-    predictions: List[float],
+    predictions: list[float],
     output_path: str,
-    input_identifier: Optional[List[str]] = None,
+    input_identifier: list[str] | None = None,
 ) -> None:
     """Save a list of predictions to a CSV, optionally with identifiers."""
     if input_identifier is not None:
@@ -118,7 +117,7 @@ def save_predictions(
     df.to_csv(output_path, index=False)
 
 
-def validate_data(df: pd.DataFrame, required_features: List[str]) -> None:
+def validate_data(df: pd.DataFrame, required_features: list[str]) -> None:
     """Raise ``ValueError`` if any required feature column is missing."""
     missing = [c for c in required_features if c not in df.columns]
     if missing:

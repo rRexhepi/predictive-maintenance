@@ -8,25 +8,36 @@ addopts = "-ra --strict-markers"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-# Legacy preprocessing + training scripts inherit lint debt from before
-# the cleanup arc started. Later PRs rewrite these; until those land,
-# exclude them so CI stays green on the incremental stack.
+# `train_model.py` is a one-off training entry point slated for rewrite
+# once the training pipeline is containerised. Keep it excluded until
+# then so CI stays green on the incremental stack.
 extend-exclude = [
-    "src/preprocessing.py",
     "src/train_model.py",
     "notebooks/",
 ]
 
 [tool.ruff.lint]
-# Keep the rule set narrow: pycodestyle errors + pyflakes + import sort.
-# The upgrade/bugbear/simplify rule sets catch real issues but would
-# require a broader cleanup pass across untouched files before turning
-# on. Tighten later in a dedicated PR.
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
     "I",   # isort
+    "UP",  # pyupgrade — drop legacy typing / syntax
+    "B",   # flake8-bugbear — catch common real bugs
 ]
 ignore = [
     "E501",  # line length — formatter handles this
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection markers are called at import time by
+# design; they return sentinels, not live objects. Mark them immutable
+# so B008 doesn't flag `param: T = Security(...)` / `= Depends(...)`.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
 ]
