@@ -23,7 +23,8 @@ COPY models/ ./models/
 
 # The API looks up artifacts by env var; these are the defaults the
 # Dockerfile ships with. Override via `-e` / compose to point at a
-# different path or the Model Registry (roadmap item).
+# different path, or set `MODEL_URI=models:/<name>@<alias>` to load
+# from the MLflow Model Registry instead.
 ENV PYTHONPATH=/app \
     MODEL_PATH=/app/models/rf_model.pkl \
     SCALER_PATH=/app/models/scaler.pkl

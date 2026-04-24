@@ -242,18 +242,10 @@ CI runs ruff + pytest + a Docker image build on every push and pull request (see
 
 ## Known gaps (being worked on)
 
-This repo is mid-cleanup. Honest about what isn't there yet:
-
 - **API schema is placeholder.** `PredictRequest` still has `feature1/2/3`
   fields; the actual trained model consumes the full C-MAPSS sensor +
   lag feature set. API and model are out of sync until the schema is
   regenerated from the training columns.
-- **`/predict` does disk I/O per request.** The handler writes the input
-  to a CSV, runs `clean_input_data`, reads it back, then deletes. That's
-  a race condition waiting for concurrent traffic. In-memory refactor is
-  the next PR.
-- **No Dockerfile.** Packaging PR is on deck.
-- **No CI / tests.** Coming.
 
 ## Roadmap
 
@@ -264,8 +256,8 @@ portfolio project, and what's next:
 - [x] Cleaned `.gitignore` (was globally ignoring `*.txt` and `*.yaml`, blocking itself)
 - [x] `data/` and `models/` README pointers; artifacts gitignored
 - [x] Untrack `mlflow.db` (was committed)
-- [ ] Kill disk-I/O in `/predict`; clean in-memory
-- [ ] Lifespan event handler (current `@app.on_event` is deprecated)
+- [x] Kill disk-I/O in `/predict`; clean in-memory
+- [x] Lifespan event handler (replacing deprecated `@app.on_event`)
 - [x] Dockerfile + `docker-compose.yaml`
 - [x] GitHub Actions CI: lint + pytest + Docker build
 - [x] Endpoint tests (happy path + 403 on bad key + 422 on bad payload)
