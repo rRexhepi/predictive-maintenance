@@ -22,9 +22,20 @@ dev can opt into different backends without touching the code:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Invoked as `python src/train_model.py`, only `src/` is on sys.path, so
+# `from src.X import ...` fails. The API + tests already run with the
+# repo root on the path (Dockerfile sets PYTHONPATH, pytest reads
+# pyproject.toml); prepend it here so the training entry point has the
+# same guarantee without forcing callers to export PYTHONPATH.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 import argparse
 import os
-from pathlib import Path
 
 import joblib
 import mlflow
