@@ -159,6 +159,46 @@ numbers sit near zero — the point is the wiring; point it at live
 telemetry and it earns its keep. Threshold convention: `PSI < 0.1` =
 no drift, `0.1–0.25` = moderate, `≥ 0.25` = significant.
 
+### Observability stack
+
+```bash
+make docker-up    # api + prometheus + grafana
+make dashboards   # prints URLs
+```
+
+Prometheus scrapes the API's `/metrics` directly on a 15s interval —
+no Pushgateway needed (the API is long-lived). Grafana auto-loads
+[`observability/grafana/dashboards/predictive-maintenance.json`](observability/grafana/dashboards/predictive-maintenance.json)
+with:
+
+* **Requests per minute** and **mean predicted RUL** at a glance.
+* **p50 / p95 / p99 latency** computed from `histogram_quantile` over
+  the prediction-latency histogram.
+* **Max feature drift PSI** with green / yellow / red thresholds at
+  0.0 / 0.1 / 0.25, plus a per-feature time series for drill-down.
+* A table view of `pm_model_info` — registry URI or filesystem path +
+  version — so on-call can tell at a glance which model is loaded.
+
+**Alert rules.** Prometheus evaluates
+[`observability/prometheus/alerts.yml`](observability/prometheus/alerts.yml):
+
+* `PMAPIHighLatency` — p95 of `/predict` over 5m stays above 250ms for 10m.
+* `PMFeatureDriftHigh` — any feature's PSI stays above 0.25 for 30m.
+* `PMAPIDown` — scrape target missing for 5m.
+
+Alertmanager isn't shipped yet — the rules expose their state on
+Prometheus' `/alerts` page and via Grafana unified alerting.
+
+![Predictive Maintenance — Serving Health & Drift dashboard](docs/grafana-dashboard.png)
+
+The image above is captured in CI via the
+[`Capture Grafana dashboard screenshot`](.github/workflows/screenshot-grafana-dashboard.yml)
+workflow — an Ubuntu runner generates synthetic training data, brings
+up the compose stack, fires a burst of `/predict` traffic, snapshots
+the dashboard with Playwright, and opens a follow-up PR with the
+refreshed PNG. Trigger it manually from the Actions tab whenever the
+panels change.
+
 ## Endpoints
 
 ### `POST /predict`
@@ -234,8 +274,8 @@ portfolio project, and what's next:
 - [x] Cap `n_jobs` default (now 2; env-configurable via `PM_N_JOBS`)
 - [ ] Regenerate API schema from training feature columns
 - [x] Prometheus `/metrics` endpoint (predictions counter + latency histogram + PSI drift gauges + RUL distribution)
-- [ ] Provisioned Grafana dashboard
-- [ ] CI workflow that captures the dashboard screenshot via Playwright
+- [x] Provisioned Grafana dashboard + alert rules
+- [x] CI workflow that captures the dashboard screenshot via Playwright
 
 ## License
 

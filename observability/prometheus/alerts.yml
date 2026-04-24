@@ -1,0 +1,51 @@
+groups:
+  - name: predictive-maintenance-api
+    rules:
+      # Fire if the p95 of /predict latency exceeds 250 ms for 10 min —
+      # that's a strong signal the model or its deps have regressed.
+      - alert: PMAPIHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(pm_prediction_latency_seconds_bucket[5m]))
+          ) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+          service: predictive-maintenance
+        annotations:
+          summary: "p95 /predict latency above 250ms"
+          description: |
+            The 5-minute rate's p95 latency for prediction calls has been
+            above 250ms for 10 minutes. Check CPU pressure, model size,
+            and recent deploys.
+
+      # Any monitored feature's PSI above 0.25 sustained for 30 min is
+      # the "significant drift" threshold — the model likely needs a
+      # retrain or the upstream data pipeline broke.
+      - alert: PMFeatureDriftHigh
+        expr: max(pm_feature_drift_psi) > 0.25
+        for: 30m
+        labels:
+          severity: warning
+          service: predictive-maintenance
+        annotations:
+          summary: "Feature drift PSI above 0.25"
+          description: |
+            A monitored feature's PSI has exceeded 0.25 for 30 minutes.
+            Inspect the feature distribution vs. the training baseline
+            and decide whether to retrain.
+
+      # Scrape-target-down catches a silently-broken API before the
+      # other alerts fall silent too.
+      - alert: PMAPIDown
+        expr: up{job="pm_api"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: predictive-maintenance
+        annotations:
+          summary: "Predictive Maintenance API is not responding to scrapes"
+          description: |
+            Prometheus can't reach the /metrics endpoint. Either the API
+            has crashed, can't start, or has been renamed in compose.
