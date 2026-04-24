@@ -161,14 +161,11 @@ def preprocess_data():
     # Feature Engineering: Create lag features
     df_train = create_lag_features(df_train, sensor_columns, lags=[1, 2, 3])
 
-    # Define features and target
+    # Define feature columns (target is 'RUL', identifiers are 'Unit' and 'Time').
     feature_columns = [col for col in df_train.columns if col not in ['Unit', 'Time', 'RUL']]
-    X = df_train[feature_columns]
-    y = df_train['RUL']
 
-    # Scale features
-    X_scaled = scale_features(df_train, feature_columns)
-    df_train[feature_columns] = X_scaled
+    # Scale features in place.
+    df_train[feature_columns] = scale_features(df_train, feature_columns)
 
     # Split data
     units = df_train['Unit'].unique()

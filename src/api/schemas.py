@@ -10,8 +10,6 @@ README under "Known gaps".
 
 from __future__ import annotations
 
-from typing import List
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -41,12 +39,12 @@ class PredictResponse(BaseModel):
 class BatchPredictRequest(BaseModel):
     """Batched features — one ``PredictRequest`` per row."""
 
-    data: List[PredictRequest] = Field(..., description="List of feature rows to score.")
+    data: list[PredictRequest] = Field(..., description="List of feature rows to score.")
 
 
 class BatchPredictResponse(BaseModel):
     """Predicted RULs, one per input row, in request order."""
 
-    predictions: List[float] = Field(
+    predictions: list[float] = Field(
         ..., description="Predicted RULs corresponding to each input row."
     )
