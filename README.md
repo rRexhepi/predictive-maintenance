@@ -79,6 +79,24 @@ curl -X POST http://127.0.0.1:8000/predict \
 FastAPI exposes Swagger UI at <http://127.0.0.1:8000/docs> and ReDoc at
 <http://127.0.0.1:8000/redoc>.
 
+## Docker
+
+```bash
+# Train artifacts first (the image mounts ./models read-only)
+make preprocess && make train
+
+export API_KEY="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')"
+make docker-build
+make docker-up
+
+curl -fsS http://localhost:8000/health
+```
+
+`docker-compose.yaml` mounts `./models:/app/models:ro` so a retrain
+outside the container is picked up on the next restart without rebuilding
+the image. `API_KEY` is required — the compose file fails fast if it's
+unset rather than letting the API boot with no auth.
+
 ## MLflow
 
 `src/train_model.py` currently expects a running MLflow tracking server
@@ -126,11 +144,15 @@ Batch prediction.
 
 ## Tests
 
-Once the test suite lands (see [Roadmap](#roadmap)):
-
 ```bash
-pytest
+make test
 ```
+
+Covers:
+- `Preprocessor`-style utility functions (drop/impute branches, no-mutation, file round-trip, `validate_data`, `save_predictions`).
+- The FastAPI `/predict`, `/batch_predict`, and `/health` endpoints — happy paths, Pydantic 422s on bad payloads, 403 on missing / wrong API keys, empty-batch rejection, and a regression guard asserting no `temp_*.csv` files appear during a request.
+
+CI runs ruff + pytest + a Docker image build on every push and pull request (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Known gaps (being worked on)
 
@@ -158,9 +180,9 @@ portfolio project, and what's next:
 - [x] Untrack `mlflow.db` (was committed)
 - [ ] Kill disk-I/O in `/predict`; clean in-memory
 - [ ] Lifespan event handler (current `@app.on_event` is deprecated)
-- [ ] Dockerfile + `docker-compose.yaml`
-- [ ] GitHub Actions CI: lint + pytest
-- [ ] Endpoint tests (happy path + 403 on bad key + 422 on bad payload)
+- [x] Dockerfile + `docker-compose.yaml`
+- [x] GitHub Actions CI: lint + pytest + Docker build
+- [x] Endpoint tests (happy path + 403 on bad key + 422 on bad payload)
 - [ ] Move MLflow tracking URI to env var with file-store default
 - [ ] MLflow Model Registry with `@candidate`/`@production` aliases + pyfunc serving
 - [ ] Cap `n_jobs` default (currently `-1`; fork-bombs laptops)
