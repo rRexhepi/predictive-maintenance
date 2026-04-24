@@ -41,7 +41,7 @@ def log_and_register(
     scaler_path: Path,
     estimator_path: Path,
     registered_model_name: str,
-) -> "mlflow.models.ModelInfo":
+) -> mlflow.models.ModelInfo:
     """Log the pyfunc model to the current MLflow run and register it."""
     return mlflow.pyfunc.log_model(
         artifact_path="model",
