@@ -25,6 +25,9 @@ def test_health_is_unauthenticated(api_client):
     body = r.json()
     assert body["status"] == "ok"
     assert body["model_loaded"] is True
+    # The filesystem predictor reports its source path so on-call can
+    # tell at a glance which model is actually loaded.
+    assert body["source"].startswith("filesystem:")
 
 
 def test_predict_happy_path(api_client, api_key):

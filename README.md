@@ -97,21 +97,35 @@ outside the container is picked up on the next restart without rebuilding
 the image. `API_KEY` is required — the compose file fails fast if it's
 unset rather than letting the API boot with no auth.
 
-## MLflow
+## MLflow Model Registry
 
-`src/train_model.py` currently expects a running MLflow tracking server
-at `http://localhost:5001`. Start one before training:
+`src/train_model.py` wraps training in `mlflow.start_run()`, logs a
+single **pyfunc** artifact (scaler + estimator wrapped as
+`PredictiveMaintenanceModel`), and registers it under the name
+`predictive-maintenance-rul`. Every new version gets the `@candidate`
+alias; passing `--promote` also moves the `@production` alias.
 
 ```bash
-mlflow server \
-  --backend-store-uri sqlite:///mlflow.db \
-  --default-artifact-root mlruns \
-  --host 0.0.0.0 \
-  --port 5001
+python src/train_model.py             # register as @candidate
+python src/train_model.py --promote   # also promote to @production
+mlflow ui                              # browse runs + registry at http://localhost:5000
 ```
 
-Moving to a file-store default (so training works without a long-running
-server) is on the [Roadmap](#roadmap).
+Serving resolves either path:
+
+```bash
+# Registry path (production).
+MODEL_URI=models:/predictive-maintenance-rul@production make serve
+
+# Filesystem path (local dev / CI / Dockerfile default).
+make serve   # falls back to models/rf_model.pkl + models/scaler.pkl
+```
+
+`MLFLOW_TRACKING_URI` defaults to the file backend `file:./mlruns` — no
+long-running tracking server required for local iteration. Point it at
+an HTTP backend (`http://localhost:5001` etc.) when you want the UI.
+`PM_N_JOBS` caps sklearn's joblib fan-out (default 2; crank higher if
+you have the cores).
 
 ## Endpoints
 
@@ -183,9 +197,9 @@ portfolio project, and what's next:
 - [x] Dockerfile + `docker-compose.yaml`
 - [x] GitHub Actions CI: lint + pytest + Docker build
 - [x] Endpoint tests (happy path + 403 on bad key + 422 on bad payload)
-- [ ] Move MLflow tracking URI to env var with file-store default
-- [ ] MLflow Model Registry with `@candidate`/`@production` aliases + pyfunc serving
-- [ ] Cap `n_jobs` default (currently `-1`; fork-bombs laptops)
+- [x] Move MLflow tracking URI to env var with file-store default
+- [x] MLflow Model Registry with `@candidate`/`@production` aliases + pyfunc serving
+- [x] Cap `n_jobs` default (now 2; env-configurable via `PM_N_JOBS`)
 - [ ] Regenerate API schema from training feature columns
 - [ ] Prometheus `/metrics` endpoint
 - [ ] Provisioned Grafana dashboard
