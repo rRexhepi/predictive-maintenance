@@ -36,6 +36,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from src.mlflow_model import log_and_register
+from src.monitoring import MONITORED_FEATURES, ReferenceStats
 
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
 N_JOBS = int(os.getenv("PM_N_JOBS", "2"))
@@ -43,6 +44,7 @@ N_JOBS = int(os.getenv("PM_N_JOBS", "2"))
 MODELS_DIR = Path("models")
 SCALER_PATH = MODELS_DIR / "scaler.pkl"
 ESTIMATOR_PATH = MODELS_DIR / "rf_model.pkl"
+REFERENCE_STATS_PATH = MODELS_DIR / "reference_stats.json"
 REGISTERED_MODEL_NAME = "predictive-maintenance-rul"
 CANDIDATE_ALIAS = "candidate"
 PRODUCTION_ALIAS = "production"
@@ -101,6 +103,14 @@ def train_and_evaluate_model(X_train, y_train, X_val, y_val, *, promote: bool = 
         # Filesystem estimator (kept for Dockerfile + filesystem fallback).
         MODELS_DIR.mkdir(exist_ok=True)
         joblib.dump(model, ESTIMATOR_PATH)
+
+        # Reference-distribution snapshot consumed by the live drift
+        # monitor. Matches feature names the API exposes.
+        feature_frame = X_train[list(MONITORED_FEATURES)] if all(
+            f in X_train.columns for f in MONITORED_FEATURES
+        ) else X_train
+        ReferenceStats.fit(feature_frame).save(REFERENCE_STATS_PATH)
+        mlflow.log_artifact(str(REFERENCE_STATS_PATH))
 
         # Register a single pyfunc (scaler + estimator) so serving can
         # resolve it by URI instead of loading two pickles by path.
