@@ -102,7 +102,7 @@ jobs:
 
       - name: Install Playwright + Chromium
         run: |
-          pip install playwright==1.47.2
+          pip install "playwright==1.47.0"
           python -m playwright install --with-deps chromium
 
       - name: Capture screenshot
