@@ -42,7 +42,7 @@ def test_reference_stats_skips_constant_feature():
         {"feature1": [5.0] * 50, "feature2": np.linspace(0, 100, 50)}
     )
     stats = ReferenceStats.fit(df, features=("feature1", "feature2"))
-    assert "feature1" not in stats.bin_edges  # degenerate — can't bin
+    assert "feature1" not in stats.bin_edges  # degenerate, can't bin
     assert "feature2" in stats.bin_edges
 
 
@@ -61,7 +61,7 @@ def test_psi_flags_shifted_distribution(reference_frame):
     rng = np.random.default_rng(1)
     # Training distribution was ~N(1.0, 0.5) clipped at 0, so its bin
     # edges span roughly 0–3. Shift the mean toward the upper tail while
-    # keeping enough support inside the reference span — otherwise every
+    # keeping enough support inside the reference span, otherwise every
     # actual value lands outside every bin and PSI is undefined.
     shifted = rng.normal(2.5, 0.4, size=500).tolist()
     psi = compute_psi(

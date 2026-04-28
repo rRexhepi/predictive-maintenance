@@ -1,6 +1,6 @@
 """Shared helpers for the prediction API.
 
-Previously all cleaning went through a disk round-trip — the API handler
+Previously all cleaning went through a disk round-trip. The API handler
 wrote the request to a CSV, ran :func:`clean_input_data_from_file`, read
 the cleaned CSV back, and deleted both temp files. That pattern doesn't
 survive concurrent traffic (two requests race on the same ``temp_*.csv``
@@ -29,7 +29,7 @@ def clean_dataframe(
 ) -> pd.DataFrame:
     """Clean an in-memory DataFrame: drop columns, handle NaNs.
 
-    Returns a new DataFrame; the caller's frame is not mutated.
+    Returns a new DataFrame. The caller's frame is not mutated.
 
     Args:
         df: Input DataFrame.
@@ -74,7 +74,7 @@ def clean_input_data_from_file(
 ) -> None:
     """File-to-file wrapper around :func:`clean_dataframe`.
 
-    Kept for scripts and tests that already wrote CSVs; new API code
+    Kept for scripts and tests that already wrote CSVs. New API code
     should prefer the in-memory entry point.
     """
     if not os.path.exists(input_path):
@@ -94,7 +94,7 @@ def clean_input_data_from_file(
     cleaned.to_csv(output_path, index=False)
 
 
-# Back-compat alias — older imports may still reference this name.
+# Back-compat alias for older imports that may still reference this name.
 clean_input_data = clean_input_data_from_file
 
 

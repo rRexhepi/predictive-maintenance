@@ -37,7 +37,7 @@ class PredictResponse(BaseModel):
 
 
 class BatchPredictRequest(BaseModel):
-    """Batched features — one ``PredictRequest`` per row."""
+    """Batched features, one ``PredictRequest`` per row."""
 
     data: list[PredictRequest] = Field(..., description="List of feature rows to score.")
 

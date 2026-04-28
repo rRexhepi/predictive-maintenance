@@ -5,7 +5,7 @@ Every run produces:
 1. A single ``pyfunc`` artifact (scaler + estimator wrapped as
    :class:`~src.mlflow_model.PredictiveMaintenanceModel`) logged to the
    current run and registered under ``REGISTERED_MODEL_NAME``. New
-   versions get the ``candidate`` alias; ``--promote`` also moves the
+   versions get the ``candidate`` alias. ``--promote`` also moves the
    ``production`` alias.
 2. ``models/rf_model.pkl`` on disk for the Dockerfile / filesystem
    serving fallback.
@@ -13,11 +13,11 @@ Every run produces:
 Tracking URI and joblib fan-out both honour env-vars so CI and local
 dev can opt into different backends without touching the code:
 
-* ``MLFLOW_TRACKING_URI``  — default: ``./mlruns`` file backend (no
+* ``MLFLOW_TRACKING_URI`` defaults to ``./mlruns`` file backend (no
   server required). Point at ``http://localhost:5001`` to use a
   long-running tracking server + registry DB.
-* ``PM_N_JOBS``            — default: ``2``. Caps sklearn's joblib
-  worker count; ``-1`` (one per core) can fork-bomb a laptop.
+* ``PM_N_JOBS`` defaults to ``2``. Caps sklearn's joblib worker count.
+  ``-1`` (one per core) can fork-bomb a laptop.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from pathlib import Path
 # Invoked as `python src/train_model.py`, only `src/` is on sys.path, so
 # `from src.X import ...` fails. The API + tests already run with the
 # repo root on the path (Dockerfile sets PYTHONPATH, pytest reads
-# pyproject.toml); prepend it here so the training entry point has the
+# pyproject.toml). Prepend it here so the training entry point has the
 # same guarantee without forcing callers to export PYTHONPATH.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:

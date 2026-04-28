@@ -21,7 +21,7 @@ groups:
             and recent deploys.
 
       # Any monitored feature's PSI above 0.25 sustained for 30 min is
-      # the "significant drift" threshold — the model likely needs a
+      # the "significant drift" threshold. The model likely needs a
       # retrain or the upstream data pipeline broke.
       - alert: PMFeatureDriftHigh
         expr: max(pm_feature_drift_psi) > 0.25

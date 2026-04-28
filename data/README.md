@@ -1,7 +1,7 @@
 # `data/`
 
 Raw and preprocessed datasets live here. **This directory is gitignored
-except for this README** — contributors produce their own data.
+except for this README.** Contributors produce their own data.
 
 ## Expected layout
 
@@ -16,7 +16,7 @@ data/
 
 ## Getting the data
 
-The project is wired against the NASA **C-MAPSS** turbofan engine
+The project is wired against the NASA C-MAPSS turbofan engine
 degradation dataset, published on NASA's data portal and mirrored on
 Kaggle:
 

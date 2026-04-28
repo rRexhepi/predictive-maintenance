@@ -1,7 +1,7 @@
 # `models/`
 
 Trained model artifacts (pickle files) live here. **This directory is
-gitignored except for this README** — binaries don't belong in git, and
+gitignored except for this README.** Binaries don't belong in git, and
 contributors produce their own from `src/train_model.py`.
 
 ## Expected layout after training

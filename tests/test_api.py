@@ -7,7 +7,7 @@ Pin the contract we actually ship:
 * ``/predict`` and ``/batch_predict`` require the ``access_token`` header.
   Missing or wrong key → 403. Bad payload → 422. Good payload → 200 with
   the right response shape.
-* Nothing touches the filesystem per request — the old code wrote two
+* Nothing touches the filesystem per request. The old code wrote two
   CSVs for every call. This test's existence is only possible because
   that pattern is gone.
 """

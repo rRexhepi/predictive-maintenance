@@ -1,4 +1,4 @@
-"""Unit tests for src/api/utils.py — the refactored cleaning helpers."""
+"""Unit tests for src/api/utils.py, the refactored cleaning helpers."""
 
 from __future__ import annotations
 

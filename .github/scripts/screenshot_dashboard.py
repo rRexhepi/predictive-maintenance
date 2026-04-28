@@ -39,7 +39,7 @@ def main() -> int:
             device_scale_factor=2,  # retina-ish so the image isn't mush
         )
         page = ctx.new_page()
-        # kiosk=tv hides the Grafana chrome and sidebars; refresh=15s
+        # kiosk=tv hides the Grafana chrome and sidebars. refresh=15s
         # forces a fresh render on load so panels populate before
         # the first screenshot.
         page.goto(

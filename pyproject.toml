@@ -21,11 +21,11 @@ select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
     "I",   # isort
-    "UP",  # pyupgrade — drop legacy typing / syntax
-    "B",   # flake8-bugbear — catch common real bugs
+    "UP",  # pyupgrade, drop legacy typing / syntax
+    "B",   # flake8-bugbear, catch common real bugs
 ]
 ignore = [
-    "E501",  # line length — formatter handles this
+    "E501",  # line length, formatter handles this
 ]
 
 [tool.ruff.lint.flake8-bugbear]

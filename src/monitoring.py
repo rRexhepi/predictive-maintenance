@@ -3,7 +3,7 @@
 The story this module tells:
 
 1. **At training time** we snapshot a reference distribution for every
-   monitored feature — decile bin edges and per-bin counts. Saved as
+   monitored feature: decile bin edges and per-bin counts. Saved as
    JSON next to the scaler + estimator.
 2. **At serving time** we keep a bounded ring buffer of recent inputs.
    On every Prometheus scrape we re-bin the buffer against the reference
@@ -16,10 +16,10 @@ The story this module tells:
 Why PSI and not Evidently / WhyLogs? A ``/metrics`` endpoint backing a
 Grafana dashboard wants a single scalar per feature to plot, which is
 exactly what PSI gives. ~20 lines of :func:`compute_psi` keeps the
-dependency surface small and documents what "drift" means — rather
+dependency surface small and documents what "drift" means rather
 than wiring a black box.
 
-On a static dataset the numbers sit near zero by construction — the
+On a static dataset the numbers sit near zero by construction. The
 value is the wiring. Point this at a live telemetry stream and it earns
 its keep.
 """

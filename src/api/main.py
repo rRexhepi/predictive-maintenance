@@ -117,7 +117,7 @@ def _load_reference() -> ReferenceStats | None:
 async def lifespan(_: FastAPI):
     if not API_KEY:
         logger.warning(
-            "API_KEY is unset — the auth check will reject every request. "
+            "API_KEY is unset, the auth check will reject every request. "
             "Set API_KEY in the environment to enable the API."
         )
 
@@ -165,7 +165,7 @@ def _predict_frame(df: pd.DataFrame) -> list[float]:
     with time_block() as timer:
         preds = predictor.predict(cleaned)
     preds_list = [float(p) for p in preds]
-    # The monitor only ever looks at the REQUIRED columns; no risk of
+    # The monitor only ever looks at the REQUIRED columns, no risk of
     # recording noise if the frame carries extra fields.
     monitor.record_prediction(cleaned[REQUIRED_FEATURES], preds_list, timer.elapsed)
     return preds_list

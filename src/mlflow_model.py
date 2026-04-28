@@ -1,7 +1,7 @@
 """MLflow ``pyfunc`` wrapper: scaler + RandomForest estimator as one artifact.
 
-Serving previously loaded two pickles off disk — ``rf_model.pkl`` and
-``scaler.pkl`` — and either could drift out of sync with the other. A
+Serving previously loaded two pickles off disk (``rf_model.pkl`` and
+``scaler.pkl``) and either could drift out of sync with the other. A
 preprocessor trained on yesterday's data paired with today's estimator
 is a silent correctness bug, not a loud crash.
 
