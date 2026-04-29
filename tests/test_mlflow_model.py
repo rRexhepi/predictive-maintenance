@@ -23,8 +23,12 @@ from src.mlflow_model import PredictiveMaintenanceModel
 @pytest.fixture
 def toy_artifacts(tmp_path):
     rng = np.random.default_rng(0)
-    X = rng.normal(loc=1.0, scale=0.5, size=(100, 3))
-    y = X @ [5.0, 3.0, -1.0] + rng.normal(scale=0.5, size=100)
+    feature_names = ["feature1", "feature2", "feature3"]
+    X = pd.DataFrame(
+        rng.normal(loc=1.0, scale=0.5, size=(100, 3)),
+        columns=feature_names,
+    )
+    y = X.to_numpy() @ [5.0, 3.0, -1.0] + rng.normal(scale=0.5, size=100)
 
     scaler = StandardScaler().fit(X)
     estimator = RandomForestRegressor(n_estimators=15, random_state=0, n_jobs=1).fit(

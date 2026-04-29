@@ -41,10 +41,16 @@ from src.api.schemas import (
 from src.api.utils import clean_dataframe, validate_data
 from src.monitoring import DriftMonitor, ReferenceStats, time_block
 
+# Stream-only logging by default (12-factor: containers capture stdout/stderr).
+# Set PM_LOG_FILE to also tee to a local file for ad-hoc dev.
+_handlers: list[logging.Handler] = [logging.StreamHandler()]
+_log_file = os.getenv("PM_LOG_FILE")
+if _log_file:
+    _handlers.append(logging.FileHandler(_log_file))
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("prediction.log"), logging.StreamHandler()],
+    handlers=_handlers,
 )
 logger = logging.getLogger(__name__)
 
